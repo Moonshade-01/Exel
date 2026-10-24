@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsPackable>false</IsPackable><IsTestProject>true</IsTestProject></PropertyGroup>
+ <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" /><PackageReference Include="xunit" Version="2.9.3" /><PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference></ItemGroup>
+ <ItemGroup><ProjectReference Include="../../src/Exel.Core/Exel.Core.csproj" /><ProjectReference Include="../../src/Exel.Integration/Exel.Integration.csproj" /></ItemGroup>
+ <ItemGroup><None Include="../../samples/*.json" Link="Samples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>
