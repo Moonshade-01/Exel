@@ -39,7 +39,7 @@ dotnet build Exel.sln
 dotnet build src/Exel/Exel.csproj -t:Run
 ```
 
-NuGet restore requires internet access. `global.json` pins the SDK. Changing SDK versions requires corresponding changes to workloads and both project target frameworks.
+NuGet restore requires internet access. Changing SDK versions requires corresponding changes to workloads and both project target frameworks.
 
 ## Features
 

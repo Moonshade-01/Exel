@@ -49,4 +49,28 @@ public class DocumentTests
         var b=new Workbook{Rows=200,Columns=52};for(int row=1;row<=50;row++)for(int col=0;col<26;col++)b.Cells[CellAddress.Column(col)+row]=new string('1',4096);
         Assert.Throws<InvalidDataException>(()=>WorkbookFile.Serialize(b));
     }
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t\r\n")]
+    [InlineData("\u00A0")]
+    public void ImportedBlankCellsBehaveLikeClearedCells(string blank)
+    {
+        string json = JsonSerializer.Serialize(new { Cells = new Dictionary<string, string> { ["a1"] = blank, ["B1"] = "A1+1" } });
+        var imported = WorkbookFile.Deserialize(json);
+        Assert.False(imported.Cells.ContainsKey("A1"));
+        Assert.Equal("", imported.Get("A1"));
+        var result = new WorkbookCalculator(imported).Calculate()["B1"];
+        Assert.Null(result.Error);
+        Assert.Equal(BigInteger.One, result.Value);
+        var reopened = WorkbookFile.Deserialize(WorkbookFile.Serialize(imported));
+        Assert.False(reopened.Cells.ContainsKey("A1"));
+        Assert.Equal("A1+1", reopened.Get("B1"));
+    }
+    [Fact]
+    public void BlankCellsDoNotBypassAddressValidation()
+    {
+        Assert.Throws<InvalidDataException>(() => WorkbookFile.Deserialize("""{"Cells":{"CW1":""}}"""));
+        Assert.Throws<InvalidDataException>(() => WorkbookFile.Deserialize("""{"Cells":{"A1":"","a1":"2"}}"""));
+    }
 }

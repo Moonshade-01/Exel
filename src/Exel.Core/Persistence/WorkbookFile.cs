@@ -17,9 +17,14 @@ public static class WorkbookFile
         if (w.Version != 1 || w.Rows is < 1 or > 100 || w.Columns is < 1 or > 100 || string.IsNullOrWhiteSpace(w.Name) || w.Name.Length > 120 || w.Cells is null)
             throw new InvalidDataException("Непідтримувана версія або некоректні параметри таблиці.");
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in w.Cells)
-            if (!CellAddress.InBounds(key.ToUpperInvariant(), w.Rows, w.Columns) || value is null || value.Length > FormulaParser.MaxFormulaLength || !normalized.TryAdd(key.ToUpperInvariant(), value))
+        {
+            string address = key.ToUpperInvariant();
+            if (!CellAddress.InBounds(address, w.Rows, w.Columns) || value is null || value.Length > FormulaParser.MaxFormulaLength || !addresses.Add(address))
                 throw new InvalidDataException($"Некоректні дані клітинки {key}.");
+            if (!string.IsNullOrWhiteSpace(value)) normalized.Add(address, value);
+        }
         w.Cells = normalized; return w;
     }
 }
