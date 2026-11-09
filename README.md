@@ -8,7 +8,7 @@ The application provides a native Windows interface, formula parsing and calcula
 
 Download `Exel-Windows.zip`, extract the entire archive and double-click **Exel.exe**. Keep all neighboring files. Do not run it inside the ZIP. This is a self-contained Windows x64 Release deployment bundling .NET 10 and Windows App SDK. Running it requires no SDK, Visual Studio, MAUI workload, restore or rebuild. A normal shortcut can point to the executable.
 
-For source builds, run `Build-Release.cmd` once and then double-click `Start.cmd`. Rebuild only after source changes. Start also detects existing Release/Debug output.
+For development, open `Exel.sln` in Visual Studio with the .NET MAUI Windows workload, or use the commands below.
 
 ## Interface and controls
 
@@ -22,7 +22,7 @@ Both `=A1*2` and `A1*2` are accepted. For example, A1 = `10`, B1 = `A1*2` gives 
 
 Single-click selects; double-click, F2 or Ctrl+A opens the native in-cell editor. Ctrl+A selects its formula. Enter commits and moves down; Tab in the cell editor commits and moves right; Escape cancels its draft. The top formula bar is synchronized. Outside editing, arrow keys navigate, Home selects column A, Ctrl+Home selects A1, PageUp/PageDown moves twelve rows and Delete clears the cell. Ctrl+N/O/S provides New/Open/Save. Ctrl+Z/Y uses document history in the grid and native text history inside a text field.
 
-Wheel scrolls rows, Shift+wheel scrolls columns; edge scrollbars and address navigation are also available. The default document is blank, 100 × 26; maximum 200 × 52. Removing a row/column removes the **last** one, including its contents. References do not shift; newly out-of-bounds addresses report #REF. Undo restores dimensions and data.
+Wheel scrolls rows, Shift+wheel scrolls columns; edge scrollbars and address navigation are also available. The default document is blank, 100 × 100; the maximum size is 100 rows and 100 columns (A through CV). Removing a row/column removes the **last** one, including its contents. References do not shift; newly out-of-bounds addresses report #REF. Undo restores dimensions and data.
 
 The sidebar offers seven recent files, up to twelve newest JSON files in a chosen folder and built-in large-number, reference and error/cycle examples. Recent paths and the chosen folder persist locally. Document history does not persist after restart or document replacement.
 
@@ -48,13 +48,13 @@ NuGet restore requires internet access. `global.json` pins the SDK. Changing SDK
 - Two-stage syntax parsing and evaluation with source positions.
 - Cell references, per-calculation caching, cycle detection and propagated errors.
 - Local JSON open/save and Google Drive create/update/list/download.
-- Initial 100 × 26 grid, expandable to 200 × 52 (AZ).
+- Initial and maximum grid size: 100 × 100 (A1 through CV100).
 
 Select a cell, type a formula with or without an initial `=`, then press Enter or Apply. Switching cells commits the previous draft. Changing the display mode preserves formulas. Grid text is abbreviated; use the full-value viewer for long numbers. Before replacing a document or closing the window, choose Save, Don’t save, or Cancel. A failed or cancelled save keeps the document open.
 
 ## Expression language
 
-Supported: decimal integer literals, parentheses, ASCII addresses (`A1`, `AZ200`), binary `+-*/`, `div`, `mod`, `^`, and two-argument `max(x,y)` / `min(x,y)`. Addresses and keywords are case insensitive. Unary signs are excluded by variant 6: write `(0 - 5)` for a negative number.
+Supported: decimal integer literals, parentheses, ASCII addresses (`A1`, `CV100`), binary `+-*/`, `div`, `mod`, `^`, and two-argument `max(x,y)` / `min(x,y)`. Addresses and keywords are case insensitive. Unary signs are excluded by variant 6: write `(0 - 5)` for a negative number.
 
 Precedence: parentheses/functions, exponentiation, multiplication/division/remainder, addition/subtraction. Exponentiation is right associative (`2 ^ 3 ^ 2 = 512`); other binary operators are left associative. `/` and `div` truncate toward zero. Remainder follows the dividend sign. Blank references evaluate to zero; `0 ^ 0 = 1`. Negative exponents are rejected.
 
@@ -80,12 +80,11 @@ Live Google authentication/upload/download require user credentials and still ne
 
 ## Documentation and status
 
-[Extended Ukrainian README](README.uk.md), [BNF](docs/GRAMMAR.md), [design notes](docs/DESIGN.uk.md), [validation status](docs/VALIDATION.md), and sample documents in `samples/`. The xUnit suite is in `tests/Exel.Tests`; real Google consent and cloud exchange still need account-owner verification. Bonus simplified-language statements are not implemented.
+[BNF](docs/GRAMMAR.md), [design notes](docs/DESIGN.uk.md), [validation status](docs/VALIDATION.md), and sample documents in `samples/`. The xUnit suite is in `tests/Exel.Tests`; real Google consent and cloud exchange still need account-owner verification. Bonus simplified-language statements are not implemented.
 
 ## Generative AI disclosure
 
 Generative AI assisted with UI preparation, program implementation and documentation. The student must review, understand and validate the result and adapt it to the instructor's requirements.
-
 
 ## Project organization and tests
 
