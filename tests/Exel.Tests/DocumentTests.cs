@@ -73,4 +73,24 @@ public class DocumentTests
         Assert.Throws<InvalidDataException>(() => WorkbookFile.Deserialize("""{"Cells":{"CW1":""}}"""));
         Assert.Throws<InvalidDataException>(() => WorkbookFile.Deserialize("""{"Cells":{"A1":"","a1":"2"}}"""));
     }
+    [Theory]
+    [InlineData("a", 1)]
+    [InlineData("ї", 2)]
+    [InlineData("漢", 3)]
+    public void JsonSizeLimitUsesUtf8Bytes(string character, int bytesPerCharacter)
+    {
+        const int limit = 4_000_000;
+        const string prefix = "{\"Name\":\"Boundary\",\"Cells\":{},\"padding\":\"";
+        const string suffix = "\"}";
+        int available = limit - System.Text.Encoding.UTF8.GetByteCount(prefix + suffix);
+        string json = prefix + new string(character[0], available / bytesPerCharacter)
+            + new string(' ', available % bytesPerCharacter) + suffix;
+        Assert.Equal(limit, System.Text.Encoding.UTF8.GetByteCount(json));
+        var workbook = WorkbookFile.Deserialize(json);
+        Assert.Equal("Boundary", workbook.Name);
+        Assert.Empty(workbook.Cells);
+        string oversized = json[..^suffix.Length] + character + suffix;
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(oversized) > limit);
+        Assert.Throws<InvalidDataException>(() => WorkbookFile.Deserialize(oversized));
+    }
 }
