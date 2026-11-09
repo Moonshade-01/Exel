@@ -49,12 +49,4 @@ public class DocumentTests
         var b=new Workbook{Rows=200,Columns=52};for(int row=1;row<=50;row++)for(int col=0;col<26;col++)b.Cells[CellAddress.Column(col)+row]=new string('1',4096);
         Assert.Throws<InvalidDataException>(()=>WorkbookFile.Serialize(b));
     }
-    [Theory]
-    [InlineData("big-integers.isheet.json")][InlineData("references.isheet.json")][InlineData("cycles.isheet.json")]
-    [InlineData("diagnostics.isheet.json")][InlineData("max-size.isheet.json")]
-    public void BundledExamplesLoadAndCalculate(string file)
-    {
-        var b=WorkbookFile.Deserialize(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"Samples",file)));
-        var results=new WorkbookCalculator(b).Calculate();Assert.Equal(b.Cells.Count,results.Count);
-    }
 }

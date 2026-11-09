@@ -13,7 +13,6 @@ public sealed partial class MainPage : ContentPage
     private string selected = "A1";
     private string? localPath, driveId;
     private bool busy, initialized, calculationDirty = true, valuesMode = true, referencePicking, referenceFromCell;
-    private CancellationTokenSource? calculation;
     private string syntaxState = "Синтаксис";
     private bool DraftChanged => (formula.Text ?? "") != workbook.Get(selected);
     private bool Dirty => history.IsDirty || DraftChanged;
@@ -41,10 +40,10 @@ public sealed partial class MainPage : ContentPage
     }
     private async void Run(Func<Task> action)
     {
-        if (busy) { status.Text = "Дочекайтеся завершення операції або скасуйте обчислення."; return; }
+        if (busy) { status.Text = "Дочекайтеся завершення операції."; return; }
         busy = true; activity.IsRunning = true; UpdateCommands();
         try { await action(); }
-        catch (OperationCanceledException) { calculationDirty = true; results.Clear(); Refresh(); status.Text = "Операцію скасовано. Зміни збережено в документі; його можна обчислити повторно."; }
+        catch (OperationCanceledException) { calculationDirty = true; results.Clear(); Refresh(); status.Text = "Час обчислення вичерпано. Документ можна обчислити повторно."; }
         catch (Exception ex) { await DisplayAlertAsync("Не вдалося виконати дію", ex.Message, "Зрозуміло"); }
         finally { busy = false; activity.IsRunning = false; UpdateCommands(); }
     }
@@ -145,14 +144,10 @@ public sealed partial class MainPage : ContentPage
     {
         status.Text = "Перевірка синтаксису й обчислення…";
         var snapshot = workbook.Snapshot();
-        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(5)); calculation = cancel;
-        try
-        {
-            results = await Task.Run(() => new WorkbookCalculator(snapshot, cancel.Token).Calculate(), cancel.Token);
-            calculationDirty = false;
-            syntaxState = results.Values.Any(r => r.Error?.Code == "#SYNTAX") ? "Синтаксис !" : "Синтаксис ✓";
-        }
-        finally { calculation = null; }
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        results = await Task.Run(() => new WorkbookCalculator(snapshot, cancel.Token).Calculate(), cancel.Token);
+        calculationDirty = false;
+        syntaxState = results.Values.Any(r => r.Error?.Code == "#SYNTAX") ? "Синтаксис !" : "Синтаксис ✓";
         Refresh();
         status.Text = results.Values.Any(r => r.Error is not null) ? "Обчислення завершено. Пояснення помилок доступні внизу та у списку проблем." : "Готово";
     }
@@ -161,10 +156,9 @@ public sealed partial class MainPage : ContentPage
     private async Task SyntaxAsync()
     {
         CommitDraft(); var snapshot = workbook.Snapshot();
-        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(5)); calculation = cancel;
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Dictionary<string, FormulaException> errors;
-        try { errors = await Task.Run(() => SyntaxValidator.Validate(snapshot, cancel.Token), cancel.Token); }
-        finally { calculation = null; }
+        errors = await Task.Run(() => SyntaxValidator.Validate(snapshot, cancel.Token), cancel.Token);
         if (calculationDirty) results = errors.ToDictionary(p => p.Key, p => new CellResult(null, p.Value), StringComparer.OrdinalIgnoreCase);
         syntaxState = errors.Count == 0 ? "Синтаксис ✓" : $"Синтаксис · {errors.Count}";
         Refresh(); status.Text = errors.Count == 0 ? $"Синтаксис {workbook.Cells.Count} формул коректний. Арифметичні дії не виконувалися." : $"Синтаксичних помилок: {errors.Count}. Натисніть «Помилки», щоб переглянути.";
@@ -258,7 +252,7 @@ public sealed partial class MainPage : ContentPage
             return false;
         }
     }
-    public async Task<bool> CanCloseAsync() { if (busy) { calculation?.Cancel(); return false; } return await CanReplaceAsync(); }
+    public async Task<bool> CanCloseAsync() { if (busy) return false; return await CanReplaceAsync(); }
     private async Task NewAsync() { if (await CanReplaceAsync()) await SetDocumentAsync(new(), null, null); }
     private async Task SetDocumentAsync(Workbook book, string? path, string? cloudId)
     {
@@ -278,13 +272,6 @@ public sealed partial class MainPage : ContentPage
         string json = await File.ReadAllTextAsync(path);
         var book = await Task.Run(() => WorkbookFile.Deserialize(json));
         await SetDocumentAsync(book, path, null); documents.Remember(path); await RefreshLibraryAsync();
-    }
-    private async Task OpenSampleAsync(string fileName)
-    {
-        if (!await CanReplaceAsync()) return;
-        await using var stream = await FileSystem.Current.OpenAppPackageFileAsync("Samples/" + fileName);
-        using var reader = new StreamReader(stream); string json = await reader.ReadToEndAsync();
-        var book = await Task.Run(() => WorkbookFile.Deserialize(json)); await SetDocumentAsync(book, null, null);
     }
     private Task SaveAsync() => SaveLocalAsync(false);
     private Task SaveAsAsync() => SaveLocalAsync(true);

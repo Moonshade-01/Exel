@@ -49,7 +49,7 @@ public sealed partial class MainPage
             ActionButton("☰ Документи", SidebarAsync), Divider(),
             ActionButton("＋ Рядок", () => ResizeAsync(true, true)), ActionButton("− Рядок", () => ResizeAsync(true, false), hint: "Видалити останній рядок · можна повернути Undo"),
             ActionButton("＋ Стовпець", () => ResizeAsync(false, true)), ActionButton("− Стовпець", () => ResizeAsync(false, false), hint: "Видалити останній стовпець · можна повернути Undo"),
-            Divider(), ActionButton("Очистити", ClearAsync), ActionButton("Повне значення", FullValueAsync), problemButton, ActionButton("Зупинити", () => Task.CompletedTask, hint: "Скасувати поточне обчислення", interrupt: true)
+            Divider(), ActionButton("Очистити", ClearAsync), ActionButton("Повне значення", FullValueAsync), problemButton
         }};
         sidebar = BuildSidebar();
         body = new Grid { ColumnSpacing = 10, Margin = new Thickness(14, 0), ColumnDefinitions = new ColumnDefinitionCollection(new ColumnDefinition(new GridLength(206)), new ColumnDefinition(GridLength.Star)) };
@@ -67,7 +67,7 @@ public sealed partial class MainPage
         root.Add(body, 0, 3); root.Add(inspection, 0, 4); root.Add(footer, 0, 5); Content = root;
     }
     private static BoxView Divider() => new() { WidthRequest = 1, HeightRequest = 23, Color = Palette.Line, Margin = new Thickness(5, 0), VerticalOptions = LayoutOptions.Center };
-    private Button ActionButton(string text, Func<Task> action, bool primary = false, string? hint = null, bool interrupt = false)
+    private Button ActionButton(string text, Func<Task> action, bool primary = false, string? hint = null)
     {
         var button = new Button { Text = text, FontSize = 12, FontAttributes = FontAttributes.Bold, HeightRequest = 35,
             Padding = new Thickness(11, 5), CornerRadius = 6, BackgroundColor = primary ? Palette.Accent : Palette.Header,
@@ -75,21 +75,15 @@ public sealed partial class MainPage
         if (hint is not null) ToolTipProperties.SetText(button, hint);
         button.Pressed += async (_, _) => { sheet.ReleaseKeyboard(); button.Opacity = 0.76; await button.ScaleToAsync(0.96, 65, Easing.CubicOut); };
         button.Released += async (_, _) => { button.Opacity = 1; await button.ScaleToAsync(1, 125, Easing.CubicOut); };
-        button.Clicked += (_, _) => { if (interrupt) calculation?.Cancel(); else Run(action); }; return button;
+        button.Clicked += (_, _) => { Run(action); }; return button;
     }
     private Border BuildSidebar()
     {
-        var samples = new VerticalStackLayout { Spacing = 5, Children = {
-            LibraryButton("Великі числа", "BigInteger та степені", () => OpenSampleAsync("big-integers.isheet.json")),
-            LibraryButton("Посилання", "Залежності між клітинками", () => OpenSampleAsync("references.isheet.json")),
-            LibraryButton("Цикли й помилки", "Приклади діагностики", () => OpenSampleAsync("cycles.isheet.json"))
-        }};
         var contents = new VerticalStackLayout { Spacing = 12, Children = {
             new Label { Text = "ДОКУМЕНТИ", FontSize = 10, CharacterSpacing = 1.7, TextColor = Palette.Muted, FontAttributes = FontAttributes.Bold },
             libraryCaption, libraryItems,
             ActionButton("Обрати папку…", PickFolderAsync),
             new BoxView { Color = Palette.Line, HeightRequest = 1, Margin = new Thickness(0, 4) },
-            new Label { Text = "ПРИКЛАДИ", FontSize = 10, CharacterSpacing = 1.7, TextColor = Palette.Muted, FontAttributes = FontAttributes.Bold }, samples,
             new BoxView { Color = Palette.Line, HeightRequest = 1, Margin = new Thickness(0, 4) }, sourceCaption, driveCaption,
             new Label { Text = "F2 — редагувати\nCtrl+A — весь текст\nEnter / Tab — перейти далі", FontSize = 11, TextColor = Palette.Muted, LineHeight = 1.35 }
         }};
@@ -134,7 +128,7 @@ public sealed partial class MainPage
         file.Add(Menu("Зберегти    Ctrl+S", SaveAsync)); file.Add(Menu("Зберегти як…", SaveAsAsync)); file.Add(Menu("Назва документа…", RenameAsync));
         var edit = new MenuBarItem { Text = "Редагування" };
         edit.Add(Menu("Скасувати    Ctrl+Z", UndoAsync)); edit.Add(Menu("Повторити    Ctrl+Y", RedoAsync));
-        edit.Add(Menu("Очистити клітинку    Delete", ClearAsync)); edit.Add(Menu("Вставити посилання кліком", ReferenceAsync));
+        edit.Add(Menu("Очистити клітинку    Delete", ClearAsync));
         var table = new MenuBarItem { Text = "Таблиця" };
         table.Add(Menu("Додати рядок унизу", () => ResizeAsync(true, true))); table.Add(Menu("Прибрати останній рядок", () => ResizeAsync(true, false)));
         table.Add(Menu("Додати стовпець праворуч", () => ResizeAsync(false, true))); table.Add(Menu("Прибрати останній стовпець", () => ResizeAsync(false, false)));
@@ -150,7 +144,7 @@ public sealed partial class MainPage
     private Task HelpAsync() => ShowTextAsync("Довідка Exel",
         "Виберіть клітинку. Введіть число або формулу у рядку ƒx; подвійний клік чи F2 відкриває редактор у самій клітинці. Ctrl+A виділяє весь текст.\n\nEnter застосовує формулу й переходить на рядок нижче, Tab — праворуч. Escape скасовує незастосоване редагування. Стрілки переміщують вибір; усередині редактора вони переміщують курсор.\n\nФормули: 5^8, =max(A1,B2), 17div5, A1mod3. Початковий = необов’язковий. Від’ємне число: (0-5). / і div — цілочисельне ділення.\n\n«↗ Посилання»: натисніть кнопку, потім потрібну клітинку. Її адресу буде вставлено у формулу, яку ви редагуєте.\n\n«Синтаксис» перевіряє правильність запису без обчислення. «Обчислити» перевіряє значення, посилання та цикли.\n\nUndo/Redo повертають до 40 застосованих змін. Видалення рядка/стовпця прибирає останній; Undo відновлює його разом із даними.\n\nКолесо прокручує рядки, Shift+колесо — стовпці. Тонкі смуги біля таблиці можна перетягувати. Введіть адресу у поле ліворуч від ƒx і натисніть Enter для переходу.\n\nCtrl+N — новий документ, Ctrl+O — відкрити, Ctrl+S — зберегти, Ctrl+Z / Ctrl+Y — історія. Файли мають власний формат JSON, не XLSX. Автозбереження немає.");
     private Task ReferencesHelpAsync() => ShowTextAsync("Посилання й цикли",
-        "1. У A1 введіть 10.\n2. У B1 введіть =A1*2. Значення B1 — 20.\n3. Змініть A1 на 15 і застосуйте: B1 стане 30.\n\nДля вставлення адреси мишею: почніть формулу, натисніть «↗ Посилання» та клацніть потрібну клітинку. Продовжуйте введення у початковій клітинці.\n\nУсі адреси — латиницею, від A1 до CV100. Порожнє посилання дорівнює нулю.\n\nЯкщо A1 містить B1+1, а B1 містить A1+1, з’явиться #CYCLE. Змініть одну з цих формул на число, щоб розірвати цикл.\n\nПриклади ліворуч можна відкрити без завантаження файлів.");
+        "1. У A1 введіть 10.\n2. У B1 введіть =A1*2. Значення B1 — 20.\n3. Змініть A1 на 15 і застосуйте: B1 стане 30.\n\nДля вставлення адреси мишею: почніть формулу, натисніть «↗ Посилання» та клацніть потрібну клітинку. Продовжуйте введення у початковій клітинці.\n\nУсі адреси — латиницею, від A1 до CV100. Порожнє посилання дорівнює нулю.\n\nЯкщо A1 містить B1+1, а B1 містить A1+1, з’явиться #CYCLE. Змініть одну з цих формул на число, щоб розірвати цикл.");
     private Task AboutAsync() => DisplayAlertAsync("Exel", "Електронні таблиці для лабораторної № 1, варіант 6.\n\nC# · .NET MAUI 10 · Windows\nBigInteger · набори операцій 1, 2, 4, 6.\n\nВласний табличний редактор із локальними файлами та Google Drive.", "Закрити");
     private async Task ShowTextAsync(string title, string text)
     {

@@ -14,7 +14,7 @@ For development, open `Exel.sln` in Visual Studio with the .NET MAUI Windows wor
 
 Native .NET MAUI UI, with **Exel at the far left** of the main toolbar, a smaller document name beneath it, grouped top controls, a large canvas grid and a collapsible document sidebar. The original dark slate, blue and amber design is inspired by spreadsheet conventions. Buttons animate on press and selected cells pulse their border.
 
-Available controls: Undo/Redo for up to 40 document states; syntax-only checking; append/remove the last row or column; recent documents and folder selection; three bundled examples; native Windows Save/Save As dialogs; cell navigation and one-shot reference insertion.
+Available controls: Undo/Redo for up to 40 document states; syntax-only checking; append/remove the last row or column; recent documents and folder selection; native Windows Save/Save As dialogs; cell navigation and one-shot reference insertion.
 
 To insert a reference, select the destination cell, type `=` or the beginning of an expression, place the caret, press **«↗ Посилання»**, then click the source cell. Its address is inserted into the original formula. Repeat the reference button for another address. Ordinary clicks select cells.
 
@@ -24,7 +24,7 @@ Single-click selects; double-click, F2 or Ctrl+A opens the native in-cell editor
 
 Wheel scrolls rows, Shift+wheel scrolls columns; edge scrollbars and address navigation are also available. The default document is blank, 100 × 100; the maximum size is 100 rows and 100 columns (A through CV). Removing a row/column removes the **last** one, including its contents. References do not shift; newly out-of-bounds addresses report #REF. Undo restores dimensions and data.
 
-The sidebar offers seven recent files, up to twelve newest JSON files in a chosen folder and built-in large-number, reference and error/cycle examples. Recent paths and the chosen folder persist locally. Document history does not persist after restart or document replacement.
+The sidebar offers seven recent files, up to twelve newest JSON files in a chosen folder. Recent paths and the chosen folder persist locally. Document history does not persist after restart or document replacement.
 
 «Синтаксис» parses without arithmetic: `10div0` passes syntax checking and reports #DIV0 when calculated. «Формули / Значення» switches source/result display. «Повне значення» shows a long result for viewing/copying; the problems button lists cell errors.
 
@@ -80,7 +80,7 @@ Live Google authentication/upload/download require user credentials and still ne
 
 ## Documentation and status
 
-[BNF](docs/GRAMMAR.md), [design notes](docs/DESIGN.uk.md), [validation status](docs/VALIDATION.md), and sample documents in `samples/`. The xUnit suite is in `tests/Exel.Tests`; real Google consent and cloud exchange still need account-owner verification. Bonus simplified-language statements are not implemented.
+[BNF](docs/GRAMMAR.md), [design notes](docs/DESIGN.uk.md), [validation status](docs/VALIDATION.md),  The xUnit suite is in `tests/Exel.Tests`; real Google consent and cloud exchange still need account-owner verification. Bonus simplified-language statements are not implemented.
 
 ## Generative AI disclosure
 
@@ -88,7 +88,7 @@ Generative AI assisted with UI preparation, program implementation and documenta
 
 ## Project organization and tests
 
-`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` covers arithmetic, syntax, references, cycles, limits, files, history and mocked Drive workflows. `samples` and `docs` contain examples and guides.
+`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` covers arithmetic, syntax, references, cycles, limits, files, history and mocked Drive workflows. `docs` contains the language specification, design notes and guides.
 
 ```powershell
 dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
