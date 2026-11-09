@@ -184,7 +184,7 @@ public sealed partial class MainPage : ContentPage
     private async Task GoToAsync()
     {
         string key = (addressBox.Text ?? "").Trim().ToUpperInvariant();
-        if (!CellAddress.InBounds(key, workbook.Rows, workbook.Columns)) throw new ArgumentException("Адреса поза таблицею. Приклад: A1 або Z100.");
+        if (!CellAddress.InBounds(key, workbook.Rows, workbook.Columns)) throw new ArgumentException("Адреса поза таблицею. Приклад: A1 або CV100.");
         await SelectAsync(key);
     }
     private async Task ToggleAsync() { CommitDraft(); valuesMode = !valuesMode; if (calculationDirty) await RecalculateAsync(); else Refresh(); }
@@ -230,8 +230,8 @@ public sealed partial class MainPage : ContentPage
     {
         CommitDraft();
         int current = row ? workbook.Rows : workbook.Columns;
-        if (add && current >= (row ? 200 : 52) || !add && current <= 1)
-        { status.Text = "Межі таблиці: від 1 × 1 до 200 × 52."; return; }
+        if (add && current >= 100 || !add && current <= 1)
+        { status.Text = "Межі таблиці: від 1 × 1 до 100 × 100."; return; }
         history.Record(workbook, selected);
         if (row) workbook.Rows += add ? 1 : -1; else workbook.Columns += add ? 1 : -1;
         foreach (string key in workbook.Cells.Keys.Where(k => !CellAddress.InBounds(k, workbook.Rows, workbook.Columns)).ToArray()) workbook.Cells.Remove(key);

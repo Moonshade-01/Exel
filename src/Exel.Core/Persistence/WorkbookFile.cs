@@ -14,7 +14,7 @@ public static class WorkbookFile
     {
         if (json.Length > 4_000_000) throw new InvalidDataException("Файл перевищує 4 МБ.");
         var w = JsonSerializer.Deserialize<Workbook>(json, Options) ?? throw new InvalidDataException("Порожній документ.");
-        if (w.Version != 1 || w.Rows is < 1 or > 200 || w.Columns is < 1 or > 52 || string.IsNullOrWhiteSpace(w.Name) || w.Name.Length > 120 || w.Cells is null)
+        if (w.Version != 1 || w.Rows is < 1 or > 100 || w.Columns is < 1 or > 100 || string.IsNullOrWhiteSpace(w.Name) || w.Name.Length > 120 || w.Cells is null)
             throw new InvalidDataException("Непідтримувана версія або некоректні параметри таблиці.");
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in w.Cells)
