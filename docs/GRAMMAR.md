@@ -1,5 +1,7 @@
 # Формальний опис мови (БНФ)
 
+Реалізацію граматики ANTLR 4 наведено у [`FormulaGrammar.g4`](../src/Exel.Core/Parsing/FormulaGrammar.g4). Згенеровані Lexer/Parser виконують розбір, а `FormulaAstVisitor` будує AST для окремого BigInteger-обчислювача. [Побудова та повторна генерація](ANTLR.md).
+
 ```bnf
 <cell-input> ::= <expression> | "=" <expression>
 <expression> ::= <sum>

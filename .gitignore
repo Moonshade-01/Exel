@@ -5,3 +5,7 @@
 *.tmp
 client_secret*.json
 credentials*.json
+
+# ANTLR regeneration metadata; generated C# sources stay tracked.
+src/Exel.Core/Parsing/Generated/*.interp
+src/Exel.Core/Parsing/Generated/*.tokens

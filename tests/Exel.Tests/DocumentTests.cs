@@ -3,8 +3,8 @@ namespace Exel.Tests;
 
 public class DocumentTests
 {
-    [Theory][InlineData("A1")][InlineData("Z100")][InlineData("AA1")][InlineData("AZ200")]
-    public void ValidAddressesFitMaximumSheet(string address)=>Assert.True(CellAddress.InBounds(address,200,52));
+    [Theory][InlineData("A1")][InlineData("Z100")][InlineData("AA1")][InlineData("CV100")]
+    public void ValidAddressesFitMaximumSheet(string address)=>Assert.True(CellAddress.InBounds(address,100,100));
     [Theory][InlineData("")][InlineData("A0")][InlineData("A01")][InlineData("AAA1")][InlineData("1A")][InlineData("А1")][InlineData("A2147483648")]
     public void InvalidAddressesAreRejected(string address)=>Assert.False(CellAddress.IsValid(address));
     [Theory][InlineData(0,"A")][InlineData(25,"Z")][InlineData(26,"AA")][InlineData(51,"AZ")]
@@ -32,14 +32,28 @@ public class DocumentTests
     [Theory]
     [InlineData("{\"Version\":2}")]
     [InlineData("{\"Rows\":0}")]
-    [InlineData("{\"Rows\":201}")]
-    [InlineData("{\"Columns\":53}")]
+    [InlineData("{\"Rows\":101}")]
+    [InlineData("{\"Columns\":101}")]
     [InlineData("{\"Name\":\" \"}")]
     [InlineData("{\"Cells\":null}")]
     [InlineData("{\"Cells\":{\"A1\":null}}")]
     [InlineData("{\"Cells\":{\"A01\":\"1\"}}")]
     [InlineData("{\"Cells\":{\"A1\":\"1\",\"a1\":\"2\"}}")]
     public void InvalidDocumentsAreRejected(string json)=>Assert.Throws<InvalidDataException>(()=>WorkbookFile.Deserialize(json));
+    [Theory]
+    [InlineData(1)]
+    [InlineData(53)]
+    [InlineData(100)]
+    public void SupportedDimensionsSurviveRoundTrip(int size)
+    {
+        var book = new Workbook { Rows = size, Columns = size };
+        string address = CellAddress.Column(size - 1) + size;
+        book.Set(address, "2^100");
+        var restored = WorkbookFile.Deserialize(WorkbookFile.Serialize(book));
+        Assert.Equal(size, restored.Rows);
+        Assert.Equal(size, restored.Columns);
+        Assert.Equal("2^100", restored.Get(address));
+    }
     [Fact]
     public void InvalidJsonIsRejected()=>Assert.Throws<JsonException>(()=>WorkbookFile.Deserialize("{bad"));
     [Fact]
