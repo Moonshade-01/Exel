@@ -7,7 +7,7 @@ public sealed partial class MainPage : ContentPage
 {
     private Workbook workbook = new();
     private readonly WorkbookHistory history = new();
-    private readonly GoogleDriveService drive = new(openBrowser: async uri => { await Browser.Default.OpenAsync(uri, BrowserLaunchMode.External); });
+    private readonly GoogleDriveService drive = new(openBrowser: async uri => { await Browser.Default.OpenAsync(uri, BrowserLaunchMode.External); }, sessionStore: new DriveSessionStore());
     private readonly LocalDocuments documents = new();
     private Dictionary<string, CellResult> results = new(StringComparer.OrdinalIgnoreCase);
     private string selected = "A1";
@@ -35,7 +35,7 @@ public sealed partial class MainPage : ContentPage
         Loaded += (_, _) =>
         {
             if (initialized) return; initialized = true;
-            Run(async () => { await RefreshLibraryAsync(); await RecalculateAsync(); });
+            Run(async () => { await RefreshLibraryAsync(); await RecalculateAsync(); await RestoreDriveAsync(); });
         };
     }
     private async void Run(Func<Task> action)
@@ -45,7 +45,7 @@ public sealed partial class MainPage : ContentPage
         try { await action(); }
         catch (OperationCanceledException) { calculationDirty = true; results.Clear(); Refresh(); status.Text = "Час обчислення вичерпано. Документ можна обчислити повторно."; }
         catch (Exception ex) { await DisplayAlertAsync("Не вдалося виконати дію", ex.Message, "Зрозуміло"); }
-        finally { busy = false; activity.IsRunning = false; UpdateCommands(); }
+        finally { busy = false; activity.IsRunning = false; driveCaption.Text = drive.Connected ? "Google Drive підключено" : "Google Drive не підключено"; UpdateCommands(); }
     }
     public bool SelectAllCellText(bool requireCellFocus = true)
     {
@@ -293,8 +293,20 @@ public sealed partial class MainPage : ContentPage
         if (folder is null) return;
         documents.SetFolder(folder); await RefreshLibraryAsync();
     }
+    private async Task RestoreDriveAsync()
+    {
+        try
+        {
+            if (await drive.RestoreSessionAsync()) status.Text = "Підключення Google Drive відновлено.";
+        }
+        catch (Exception)
+        {
+            status.Text = "Не вдалося відновити Google Drive. Натисніть Drive, щоб повторити або підключити акаунт.";
+        }
+    }
     private async Task DriveAsync()
     {
+        if (!drive.Connected) await RestoreDriveAsync();
         string? choice = await DisplayActionSheetAsync("Google Drive", "Скасувати", null,
             drive.Connected ? "Змінити обліковий запис" : "Підключити Google Drive", "Відкрити з Drive", "Зберегти в Drive", "Вийти");
         if (choice is "Підключити Google Drive" or "Змінити обліковий запис")
@@ -302,7 +314,7 @@ public sealed partial class MainPage : ContentPage
             var file = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "OAuth Desktop client JSON" });
             if (file is null) return;
             await using var stream = await file.OpenReadAsync(); using var reader = new StreamReader(stream);
-            drive.Configure(await reader.ReadToEndAsync()); driveId = null; await drive.SignInAsync();
+            drive.Configure(await reader.ReadToEndAsync()); await drive.SignOutAsync(); driveId = null; await drive.SignInAsync();
             driveCaption.Text = "Google Drive підключено"; status.Text = "Google Drive підключено.";
         }
         else if (choice == "Зберегти в Drive")
@@ -319,7 +331,7 @@ public sealed partial class MainPage : ContentPage
             int at = Array.IndexOf(names, name); if (at < 0) return;
             await SetDocumentAsync(await drive.DownloadAsync(files[at].Id), null, files[at].Id);
         }
-        else if (choice == "Вийти") { drive.Disconnect(); driveId = null; driveCaption.Text = "Google Drive не підключено"; UpdateCommands(); }
+        else if (choice == "Вийти") { await drive.SignOutAsync(); driveId = null; driveCaption.Text = "Google Drive не підключено"; UpdateCommands(); }
     }
     private async Task FullValueAsync()
     {

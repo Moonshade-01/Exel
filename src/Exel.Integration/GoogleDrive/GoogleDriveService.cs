@@ -14,25 +14,72 @@ public sealed class GoogleDriveService : IDisposable
     private readonly bool ownsHttp;
     private readonly Func<Uri, Task> openBrowser;
     private readonly TimeProvider clock;
-    public GoogleDriveService(Func<Uri, Task> openBrowser, HttpClient? http = null, TimeProvider? clock = null)
+    public GoogleDriveService(Func<Uri, Task> openBrowser, HttpClient? http = null, TimeProvider? clock = null, IDriveSessionStore? sessionStore = null)
     {
         this.openBrowser = openBrowser;
         this.http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(40) };
         ownsHttp = http is null;
         this.clock = clock ?? TimeProvider.System;
+        this.sessionStore = sessionStore;
     }
+    private readonly IDriveSessionStore? sessionStore;
     private string clientId = "", clientSecret = "", accessToken = "", refreshToken = "";
     private DateTimeOffset expires;
-    public bool Connected => accessToken.Length > 0;
+    public bool Connected => accessToken.Length > 0 || refreshToken.Length > 0;
     public void Configure(string json)
     {
-        using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("installed", out var installed))
-            throw new InvalidDataException("Потрібен OAuth JSON типу Desktop app (поле installed).");
-        clientId = installed.GetProperty("client_id").GetString() ?? "";
-        clientSecret = installed.TryGetProperty("client_secret", out var secret) ? secret.GetString() ?? "" : "";
-        if (!clientId.EndsWith(".apps.googleusercontent.com", StringComparison.Ordinal)) throw new InvalidDataException("Некоректний client_id.");
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("installed", out var installed) || installed.ValueKind != JsonValueKind.Object ||
+                !installed.TryGetProperty("client_id", out var id) || id.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("Потрібен OAuth JSON типу Desktop app із полем client_id.");
+            string nextId = id.GetString() ?? "";
+            string nextSecret = "";
+            if (installed.TryGetProperty("client_secret", out var secret))
+            {
+                if (secret.ValueKind != JsonValueKind.String) throw new InvalidDataException("Некоректний client_secret.");
+                nextSecret = secret.GetString() ?? "";
+            }
+            if (!nextId.EndsWith(".apps.googleusercontent.com", StringComparison.Ordinal))
+                throw new InvalidDataException("Некоректний client_id.");
+            clientId = nextId; clientSecret = nextSecret;
+            Disconnect();
+        }
+        catch (JsonException) { throw new InvalidDataException("Некоректний OAuth JSON."); }
+    }
+    public async Task<bool> RestoreSessionAsync()
+    {
+        if (sessionStore is null) return false;
+        string? json = await sessionStore.LoadAsync();
+        if (json is null) return false;
+        DriveSession session;
+        try
+        {
+            session = JsonSerializer.Deserialize<DriveSession>(json) ?? throw new InvalidDataException();
+            if (string.IsNullOrWhiteSpace(session.RefreshToken) || session.ClientSecret is null)
+                throw new InvalidDataException();
+            Configure(JsonSerializer.Serialize(new { installed = new { client_id = session.ClientId, client_secret = session.ClientSecret } }));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidDataException)
+        {
+            await SignOutAsync();
+            return false;
+        }
+        refreshToken = session.RefreshToken;
+        // Refresh lazily on the first Drive operation so offline startup remains immediate.
+        return true;
+    }
+    public async Task SignOutAsync()
+    {
         Disconnect();
+        if (sessionStore is not null) await sessionStore.ClearAsync();
+    }
+    private async Task SaveSessionAsync()
+    {
+        if (sessionStore is not null && refreshToken.Length > 0)
+            await sessionStore.SaveAsync(JsonSerializer.Serialize(new DriveSession(clientId, clientSecret, refreshToken)));
     }
     private static string Base64(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     public async Task SignInAsync()
@@ -65,11 +112,32 @@ public sealed class GoogleDriveService : IDisposable
         fields["client_id"] = clientId;
         if (clientSecret.Length > 0) fields["client_secret"] = clientSecret;
         using var response = await http.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(fields));
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Google OAuth: HTTP {(int)response.StatusCode}. Перевірте налаштування OAuth або увійдіть знову.");
+        if (!response.IsSuccessStatusCode)
+        {
+            if (fields["grant_type"] == "refresh_token" && response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                string body = await response.Content.ReadAsStringAsync();
+                bool revoked = false;
+                try
+                {
+                    using var error = JsonDocument.Parse(body);
+                    revoked = error.RootElement.ValueKind == JsonValueKind.Object &&
+                        error.RootElement.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String && code.GetString() == "invalid_grant";
+                }
+                catch (JsonException) { }
+                if (revoked)
+                {
+                    await SignOutAsync();
+                    throw new InvalidOperationException("Доступ Google Drive завершився або був відкликаний. Підключіть акаунт повторно.");
+                }
+            }
+            throw new HttpRequestException($"Google OAuth: HTTP {(int)response.StatusCode}. Перевірте мережу та налаштування OAuth або увійдіть знову.");
+        }
         using var token = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         accessToken = token.RootElement.GetProperty("access_token").GetString()!;
         if (token.RootElement.TryGetProperty("refresh_token", out var refresh)) refreshToken = refresh.GetString()!;
         expires = clock.GetUtcNow().AddSeconds(token.RootElement.GetProperty("expires_in").GetInt32() - 60);
+        await SaveSessionAsync();
     }
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request)
     {
@@ -123,6 +191,6 @@ public sealed class GoogleDriveService : IDisposable
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return doc.RootElement.GetProperty("id").GetString()!;
     }
-    public void Disconnect() { accessToken = ""; refreshToken = ""; }
+    public void Disconnect() { accessToken = ""; refreshToken = ""; expires = DateTimeOffset.MinValue; }
     public void Dispose() { Disconnect(); if (ownsHttp) http.Dispose(); }
 }

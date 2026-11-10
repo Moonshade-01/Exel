@@ -24,6 +24,13 @@ public class DriveTests
             Requests.Add(copy);return handle(copy);
         }
     }
+    private sealed class MemoryStore : IDriveSessionStore
+    {
+        public string? Value;
+        public Task<string?> LoadAsync() => Task.FromResult(Value);
+        public Task SaveAsync(string session) { Value = session; return Task.CompletedTask; }
+        public Task ClearAsync() { Value = null; return Task.CompletedTask; }
+    }
     private sealed class Session : IDisposable
     {
         public Clock Clock {get;}=new();
@@ -33,7 +40,7 @@ public class DriveTests
         public Uri? AuthorizationUri;
         private Task? callback;
         private readonly bool validState;
-        public Session(Func<Request,HttpResponseMessage>? handle=null,bool validState=true)
+        public Session(Func<Request,HttpResponseMessage>? handle=null,bool validState=true, IDriveSessionStore? store=null)
         {
             this.validState=validState;
             int tokens=0;
@@ -41,7 +48,7 @@ public class DriveTests
                 ? Json("""{"access_token":"access-TOKEN","refresh_token":"refresh-TOKEN","expires_in":3600}""".Replace("access-TOKEN","access-"+(++tokens)))
                 : (handle??(_=>Json("{}")))(request));
             Client=new HttpClient(Transport);
-            Drive=new GoogleDriveService(OpenBrowser,Client,Clock);
+            Drive=new GoogleDriveService(OpenBrowser,Client,Clock,store);
             Drive.Configure(Credentials);
         }
         private Task OpenBrowser(Uri uri)
@@ -59,6 +66,12 @@ public class DriveTests
 
     [Theory]
     [InlineData("{}")]
+    [InlineData("null")]
+    [InlineData("not json")]
+    [InlineData("""{"installed":{}}""")]
+    [InlineData("""{"installed":null}""")]
+    [InlineData("""{"installed":{"client_id":10}}""")]
+    [InlineData("""{"installed":{"client_id":"test.apps.googleusercontent.com","client_secret":10}}""")]
     [InlineData("""{"web":{"client_id":"test.apps.googleusercontent.com"}}""")]
     [InlineData("""{"installed":{"client_id":"untrusted.example"}}""")]
     public void InvalidOAuthConfigurationIsRejected(string json)
@@ -135,4 +148,107 @@ public class DriveTests
     {
         using var s=new Session();await s.SignIn();s.Drive.Configure(Credentials);Assert.False(s.Drive.Connected);
     }
+    [Fact]
+    public async Task SignInPersistsOnlyCredentialsAndRefreshToken()
+    {
+        var store = new MemoryStore();
+        using var s = new Session(store: store);
+        await s.SignIn();
+        var saved = JsonSerializer.Deserialize<DriveSession>(Assert.IsType<string>(store.Value))!;
+        Assert.Equal("test-client.apps.googleusercontent.com", saved.ClientId);
+        Assert.Equal("synthetic-test-value", saved.ClientSecret);
+        Assert.Equal("refresh-TOKEN", saved.RefreshToken);
+        Assert.DoesNotContain("access-1", store.Value!);
+    }
+    [Fact]
+    public async Task RestartRestoresWithoutBrowserAndRefreshesOnFirstUse()
+    {
+        var store = new MemoryStore();
+        using (var first = new Session(store: store)) await first.SignIn();
+        using var next = new Session(_ => Json("""{"files":[]}"""), store: store);
+        Assert.True(await next.Drive.RestoreSessionAsync());
+        Assert.True(next.Drive.Connected);
+        Assert.Null(next.AuthorizationUri);
+        Assert.Empty(next.Transport.Requests);
+        await next.Drive.ListAsync();
+        var token = next.Transport.Requests.First();
+        Assert.Equal("refresh_token", Fields(token.Body)["grant_type"]);
+        Assert.Equal("refresh-TOKEN", Fields(token.Body)["refresh_token"]);
+        Assert.Equal("Bearer access-1", next.Transport.Requests.Last().Authorization);
+    }
+    [Fact]
+    public async Task SignOutRemovesStoredSessionAndPreventsRestoration()
+    {
+        var store = new MemoryStore();
+        using var s = new Session(store: store);
+        await s.SignIn();
+        await s.Drive.SignOutAsync();
+        Assert.Null(store.Value);
+        Assert.False(s.Drive.Connected);
+        Assert.False(await s.Drive.RestoreSessionAsync());
+    }
+    [Theory]
+    [InlineData("invalid json")]
+    [InlineData("{}")]
+    [InlineData("null")]
+    [InlineData("""{"ClientId":"test.apps.googleusercontent.com","ClientSecret":"","RefreshToken":""}""")]
+    public async Task CorruptStoredSessionIsRemoved(string value)
+    {
+        var store = new MemoryStore { Value = value };
+        using var s = new Session(store: store);
+        Assert.False(await s.Drive.RestoreSessionAsync());
+        Assert.Null(store.Value);
+        Assert.False(s.Drive.Connected);
+        Assert.Empty(s.Transport.Requests);
+    }
+    [Fact]
+    public async Task RefreshRotationIsSavedButOmittedRefreshTokenIsPreserved()
+    {
+        var store = new MemoryStore { Value = JsonSerializer.Serialize(new DriveSession("test.apps.googleusercontent.com", "secret", "original-refresh")) };
+        int count = 0;
+        using var transport = new Handler(r => r.Uri.Host == "oauth2.googleapis.com"
+            ? Json(++count == 1 ? """{"access_token":"one","refresh_token":"rotated","expires_in":3600}"""
+                : """{"access_token":"two","expires_in":3600}""")
+            : Json("""{"files":[]}"""));
+        using var http = new HttpClient(transport);
+        var clock = new Clock();
+        using var drive = new GoogleDriveService(_ => throw new Exception("Browser must not open"), http, clock, store);
+        await drive.RestoreSessionAsync();
+        await drive.ListAsync();
+        Assert.Equal("rotated", JsonSerializer.Deserialize<DriveSession>(store.Value!)!.RefreshToken);
+        clock.Now = clock.Now.AddHours(2);
+        await drive.ListAsync();
+        Assert.Equal("rotated", Fields(transport.Requests[2].Body)["refresh_token"]);
+        Assert.Equal("rotated", JsonSerializer.Deserialize<DriveSession>(store.Value!)!.RefreshToken);
+    }
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "invalid_grant", true)]
+    [InlineData(HttpStatusCode.InternalServerError, "server_error", false)]
+    public async Task OnlyRevokedRefreshTokenClearsSavedSession(HttpStatusCode status, string error, bool revoked)
+    {
+        var store = new MemoryStore { Value = JsonSerializer.Serialize(new DriveSession("test.apps.googleusercontent.com", "secret", "saved-refresh")) };
+        using var transport = new Handler(_ => Json(JsonSerializer.Serialize(new { error }), status));
+        using var http = new HttpClient(transport);
+        using var drive = new GoogleDriveService(_ => throw new Exception("Browser must not open"), http, sessionStore: store);
+        await drive.RestoreSessionAsync();
+        if (revoked) await Assert.ThrowsAsync<InvalidOperationException>(() => drive.ListAsync());
+        else await Assert.ThrowsAsync<HttpRequestException>(() => drive.ListAsync());
+        Assert.Equal(revoked, store.Value is null);
+        Assert.Equal(!revoked, drive.Connected);
+        Assert.Single(transport.Requests);
+    }
+
+    [Fact]
+    public async Task RestoringAfterMemoryDisconnectRefreshesEvenIfOldAccessTokenWasNotExpired()
+    {
+        var store = new MemoryStore();
+        using var s = new Session(_ => Json("""{"files":[]}"""), store: store);
+        await s.SignIn();
+        s.Drive.Disconnect();
+        Assert.True(await s.Drive.RestoreSessionAsync());
+        await s.Drive.ListAsync();
+        Assert.Equal("refresh_token", Fields(s.Transport.Requests[1].Body)["grant_type"]);
+        Assert.Equal("Bearer access-2", s.Transport.Requests.Last().Authorization);
+    }
+
 }
