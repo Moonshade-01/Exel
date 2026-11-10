@@ -146,13 +146,13 @@ Run the tests from the repository root:
 dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
 ```
 
-`SpreadsheetTests.cs` contains exactly **five** unit tests:
+`SpreadsheetTests.cs` contains exactly **five** unit tests covering the main spreadsheet features:
 
-1. BigInteger arithmetic and operator precedence.
-2. Syntax error reporting with the correct source position.
-3. Recalculation after a referenced cell changes.
-4. Circular-reference detection.
-5. JSON round-trip preservation of table data and formulas.
+1. Variant 6 operations (`+`, `-`, `*`, `/`, `div`, `mod`, `^`, `min`, `max`), precedence and BigInteger results.
+2. Syntax error positions and syntax-only validation without arithmetic evaluation.
+3. Recalculation of a dependency chain after an edit, case-insensitive references and empty cells.
+4. An indirect cycle, its effect on dependent cells, and recovery after breaking it.
+5. JSON preservation of table metadata, formulas and references, followed by recalculation.
 
 The tests run independently of MAUI and do not contact Google.
 

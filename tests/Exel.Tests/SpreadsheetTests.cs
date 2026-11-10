@@ -3,58 +3,80 @@ namespace Exel.Tests;
 public class SpreadsheetTests
 {
     [Fact]
-    public void ArithmeticUsesBigIntegerAndOperatorPrecedence()
+    public void VariantSixOperationsRespectPrecedenceAndSupportBigInteger()
     {
         var book = new Workbook();
-        book.Set("A1", "2^100+3*4");
-
-        var result = new WorkbookCalculator(book).Calculate()["A1"];
-
-        Assert.Null(result.Error);
-        Assert.Equal(BigInteger.Pow(2, 100) + 12, result.Value);
-    }
-
-    [Fact]
-    public void InvalidFormulaReportsSyntaxErrorAtTheCorrectPosition()
-    {
-        var error = Assert.Throws<FormulaException>(() => new FormulaParser().Parse("=2+*3"));
-
-        Assert.Equal("#SYNTAX", error.Code);
-        Assert.Equal(3, error.Position);
-        Assert.Equal(1, error.Length);
-    }
-
-    [Fact]
-    public void CellReferencesRecalculateAfterTheSourceChanges()
-    {
-        var book = new Workbook();
-        book.Set("A1", "10");
-        book.Set("B1", "a1*2");
-        var initial = new WorkbookCalculator(book).Calculate()["B1"];
-        Assert.Null(initial.Error);
-        Assert.Equal(new BigInteger(20), initial.Value);
-
-        book.Set("A1", "15");
-        var updated = new WorkbookCalculator(book).Calculate()["B1"];
-        Assert.Null(updated.Error);
-        Assert.Equal(new BigInteger(30), updated.Value);
-    }
-
-    [Fact]
-    public void CircularCellReferencesReturnCycleErrors()
-    {
-        var book = new Workbook();
-        book.Set("A1", "B1+1");
-        book.Set("B1", "A1+1");
+        book.Set("A1", "2^100+24/3*2-5+(17div5)*10+17mod5+max(7,min(20,4))");
+        book.Set("B1", "2^3^2");
+        book.Set("C1", "(0-17)div5*10+(0-17)mod5");
 
         var results = new WorkbookCalculator(book).Calculate();
 
-        Assert.Equal("#CYCLE", results["A1"].Error?.Code);
-        Assert.Equal("#CYCLE", results["B1"].Error?.Code);
+        Assert.All(results.Values, result => Assert.Null(result.Error));
+        Assert.Equal(BigInteger.Pow(2, 100) + 50, results["A1"].Value);
+        Assert.Equal(new BigInteger(512), results["B1"].Value);
+        Assert.Equal(new BigInteger(-32), results["C1"].Value);
     }
 
     [Fact]
-    public void JsonRoundTripPreservesTheTableAndSourceFormulas()
+    public void SyntaxCheckLocatesErrorsWithoutExecutingArithmetic()
+    {
+        var book = new Workbook();
+        book.Set("A1", "=2+*3");
+        book.Set("B1", "10div0");
+
+        var errors = SyntaxValidator.Validate(book);
+
+        Assert.Single(errors);
+        Assert.Equal("#SYNTAX", errors["A1"].Code);
+        Assert.Equal(3, errors["A1"].Position);
+        Assert.Equal(1, errors["A1"].Length);
+        Assert.Equal("#DIV0", new WorkbookCalculator(book).Calculate()["B1"].Error?.Code);
+    }
+
+    [Fact]
+    public void ChangingASourceRecalculatesTheDependencyChain()
+    {
+        var book = new Workbook();
+        book.Set("A1", "10");
+        book.Set("B1", "a1*2+D1");
+        book.Set("C1", "max(B1,25)");
+        var before = new WorkbookCalculator(book).Calculate();
+        Assert.Equal(new BigInteger(20), before["B1"].Value);
+        Assert.Equal(new BigInteger(25), before["C1"].Value);
+
+        book.Set("A1", "20");
+        var after = new WorkbookCalculator(book).Calculate();
+
+        Assert.All(after.Values, result => Assert.Null(result.Error));
+        Assert.Equal(new BigInteger(40), after["B1"].Value);
+        Assert.Equal(new BigInteger(40), after["C1"].Value);
+    }
+
+    [Fact]
+    public void IndirectCycleIsReportedAndCalculationRecoversAfterItIsBroken()
+    {
+        var book = new Workbook();
+        book.Set("A1", "B1");
+        book.Set("B1", "C1");
+        book.Set("C1", "A1");
+        book.Set("D1", "B1+1");
+        book.Set("E1", "42");
+        var cyclic = new WorkbookCalculator(book).Calculate();
+        Assert.Equal("#CYCLE", cyclic["A1"].Error?.Code);
+        Assert.Equal("#CYCLE", cyclic["D1"].Error?.Code);
+        Assert.Equal(new BigInteger(42), cyclic["E1"].Value);
+
+        book.Set("C1", "7");
+        var recovered = new WorkbookCalculator(book).Calculate();
+
+        Assert.All(recovered.Values, result => Assert.Null(result.Error));
+        Assert.Equal(new BigInteger(7), recovered["A1"].Value);
+        Assert.Equal(new BigInteger(8), recovered["D1"].Value);
+    }
+
+    [Fact]
+    public void JsonRoundTripPreservesTableMetadataFormulasAndReferences()
     {
         var book = new Workbook { Name = "Таблиця їжаків", Rows = 100, Columns = 100 };
         book.Set("A1", "=2^100");
@@ -68,5 +90,8 @@ public class SpreadsheetTests
         Assert.Equal(2, restored.Cells.Count);
         Assert.Equal("=2^100", restored.Get("A1"));
         Assert.Equal("max(A1,10)", restored.Get("CV100"));
+        var result = new WorkbookCalculator(restored).Calculate()["CV100"];
+        Assert.Null(result.Error);
+        Assert.Equal(BigInteger.Pow(2, 100), result.Value);
     }
 }
