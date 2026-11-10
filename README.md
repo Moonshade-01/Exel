@@ -84,13 +84,13 @@ Generative AI assisted with UI preparation, program implementation and documenta
 
 ## Project organization and tests
 
-`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` covers arithmetic, syntax, references, cycles, limits, files, history and mocked Drive workflows.
+`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` contains five core unit tests: BigInteger arithmetic and precedence, syntax error positions, recalculation of references, circular references, and JSON round-trip preservation.
 
 ```powershell
 dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
 ```
 
-Tests target .NET 10 and do not require MAUI or Google credentials. OAuth tests use IPv4 loopback and a fake HTTP transport; they do not contact Google.
+The five tests target .NET 10, run without MAUI, and require neither internet access nor Google credentials.
 
 The custom JSON format preserves source formulas. XLSX import/export is not implemented: it requires syntax conversion and explicit treatment of arbitrary-size integers. Renaming a JSON file does not convert it to XLSX.
 
