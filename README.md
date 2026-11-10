@@ -58,11 +58,11 @@ Supported: decimal integer literals, parentheses, ASCII addresses (`A1`, `CV100`
 
 Precedence: parentheses/functions, exponentiation, multiplication/division/remainder, addition/subtraction. Exponentiation is right associative (`2 ^ 3 ^ 2 = 512`); other binary operators are left associative. `/` and `div` truncate toward zero. Remainder follows the dividend sign. Blank references evaluate to zero; `0 ^ 0 = 1`. Negative exponents are rejected.
 
-Examples: `max(A1,2^100)`, `(0-17)div5`, `17mod5`. Adjacent operands such as `12A1` are invalid. [Formal BNF](docs/GRAMMAR.md).
+Examples: `max(A1,2^100)`, `(0-17)div5`, `17mod5`. Adjacent operands such as `12A1` are invalid.
 
 ## Implementation
 
-`Exel.Core` is independent of MAUI: workbook, ANTLR 4 lexer/parser, AST, BigInteger evaluator and JSON codec. `Parsing/FormulaGrammar.g4` defines the language; `FormulaAstVisitor` converts the ANTLR parse tree into positioned expression nodes without evaluating them. Generated C# sources are included in the repository, so normal Visual Studio builds need only NuGet restore, not Java or an ANTLR extension. See [ANTLR integration and regeneration](docs/ANTLR.md). `Exel` supplies the MAUI UI; `Exel.Integration` provides independently testable Google Drive access. All populated cells are parsed before evaluation begins. A DFS active set detects cycles; a fresh cache is created for every calculation. Exponentiation uses repeated squaring. Calculations use a snapshot on a background task. The entire sheet is recalculated after edits, while selection and display-mode changes reuse unchanged results; incremental recalculation is not implemented. Undo/Redo snapshots share immutable formula strings and retain up to 40 changes.
+`Exel.Core` is independent of MAUI: workbook, ANTLR 4 lexer/parser, AST, BigInteger evaluator and JSON codec. `Parsing/FormulaGrammar.g4` defines the language; `FormulaAstVisitor` converts the ANTLR parse tree into positioned expression nodes without evaluating them. Generated C# sources are included in the repository, so normal Visual Studio builds need only NuGet restore, not Java or an ANTLR extension. `Exel` supplies the MAUI UI; `Exel.Integration` provides independently testable Google Drive access. All populated cells are parsed before evaluation begins. A DFS active set detects cycles; a fresh cache is created for every calculation. Exponentiation uses repeated squaring. Calculations use a snapshot on a background task. The entire sheet is recalculated after edits, while selection and display-mode changes reuse unchanged results; incremental recalculation is not implemented. Undo/Redo snapshots share immutable formula strings and retain up to 40 changes.
 
 Errors: `#SYNTAX`, `#DIV0`, `#REF`, `#CYCLE`, `#DOMAIN`, `#LIMIT`. The UI reports a one-based character position. A dependency error points to the reference in the current formula.
 
@@ -78,17 +78,13 @@ The `drive.file` scope limits access to app-created files. Save creates a JSON f
 
 Live Google authentication/upload/download require user credentials and still need end-to-end verification. See [Google Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app), [Drive uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads), [MAUI setup](https://learn.microsoft.com/dotnet/maui/get-started/first-app).
 
-## Documentation and status
-
-[BNF](docs/GRAMMAR.md), [design notes](docs/DESIGN.uk.md), [validation status](docs/VALIDATION.md),  The xUnit suite is in `tests/Exel.Tests`; real Google consent and cloud exchange still need account-owner verification. Bonus simplified-language statements are not implemented.
-
 ## Generative AI disclosure
 
 Generative AI assisted with UI preparation, program implementation and documentation. The student must review, understand and validate the result and adapt it to the instructor's requirements.
 
 ## Project organization and tests
 
-`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` covers arithmetic, syntax, references, cycles, limits, files, history and mocked Drive workflows. `docs` contains the language specification, design notes and guides.
+`src/Exel` contains the Windows MAUI UI and native services. `src/Exel.Core` separates documents, parsing, calculation and JSON persistence. `src/Exel.Integration` contains OAuth and Drive HTTP access. `tests/Exel.Tests` covers arithmetic, syntax, references, cycles, limits, files, history and mocked Drive workflows.
 
 ```powershell
 dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
@@ -96,4 +92,6 @@ dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
 
 Tests target .NET 10 and do not require MAUI or Google credentials. OAuth tests use IPv4 loopback and a fake HTTP transport; they do not contact Google.
 
-The custom JSON format preserves source formulas. XLSX import/export is not implemented: it requires syntax conversion and explicit treatment of arbitrary-size integers. Renaming a JSON file does not convert it to XLSX. See the [file-format explanation](docs/FILE_FORMAT.uk.md) and [step-by-step Drive guide](docs/GOOGLE_DRIVE.uk.md).
+The custom JSON format preserves source formulas. XLSX import/export is not implemented: it requires syntax conversion and explicit treatment of arbitrary-size integers. Renaming a JSON file does not convert it to XLSX.
+
+ANTLR is distributed under the BSD 3-Clause license. See [ANTLR license](licenses/ANTLR-LICENSE.txt).
