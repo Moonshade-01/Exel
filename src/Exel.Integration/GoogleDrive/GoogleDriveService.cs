@@ -133,10 +133,27 @@ public sealed class GoogleDriveService : IDisposable
             }
             throw new HttpRequestException($"Google OAuth: HTTP {(int)response.StatusCode}. Перевірте мережу та налаштування OAuth або увійдіть знову.");
         }
-        using var token = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        accessToken = token.RootElement.GetProperty("access_token").GetString()!;
-        if (token.RootElement.TryGetProperty("refresh_token", out var refresh)) refreshToken = refresh.GetString()!;
-        expires = clock.GetUtcNow().AddSeconds(token.RootElement.GetProperty("expires_in").GetInt32() - 60);
+        try
+        {
+            using var token = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var data = token.RootElement;
+            if (data.ValueKind != JsonValueKind.Object ||
+                !data.TryGetProperty("access_token", out var access) || access.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(access.GetString()) ||
+                !data.TryGetProperty("expires_in", out var lifetime) || lifetime.ValueKind != JsonValueKind.Number || !lifetime.TryGetInt32(out int seconds) || seconds <= 0)
+                throw new InvalidDataException("Google повернув некоректну відповідь авторизації. Повторіть підключення.");
+            string nextRefresh = refreshToken;
+            if (data.TryGetProperty("refresh_token", out var refresh))
+            {
+                if (refresh.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(refresh.GetString()))
+                    throw new InvalidDataException("Google повернув некоректний токен поновлення.");
+                nextRefresh = refresh.GetString()!;
+            }
+            // Update the session only after every required field has been validated.
+            string nextAccess = access.GetString()!;
+            var nextExpiry = clock.GetUtcNow().AddSeconds(seconds - 60);
+            accessToken = nextAccess; refreshToken = nextRefresh; expires = nextExpiry;
+        }
+        catch (JsonException) { throw new InvalidDataException("Google повернув некоректний JSON авторизації."); }
         await SaveSessionAsync();
     }
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request)

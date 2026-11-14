@@ -7,7 +7,7 @@ public sealed class Workbook
     public int Rows { get; set; } = 100;
     public int Columns { get; set; } = 100;
     public Dictionary<string, string> Cells { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public Workbook Snapshot() => new() { Name = Name, Rows = Rows, Columns = Columns, Cells = new(Cells, StringComparer.OrdinalIgnoreCase) };
+    public Workbook Snapshot() => new() { Version = Version, Name = Name, Rows = Rows, Columns = Columns, Cells = new(Cells, StringComparer.OrdinalIgnoreCase) };
     public string Get(string address) => Cells.GetValueOrDefault(address, "");
     public void Set(string address, string formula)
     {

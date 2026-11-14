@@ -29,7 +29,7 @@ The application targets **Windows only** and uses **.NET MAUI**.
 | System.Text.Json | Table serialization |
 | Google Drive REST API v3 | Cloud files, accessed through `HttpClient` |
 | MAUI SecureStorage | Saved Google authorization |
-| xUnit | 2.9.3 — five core unit tests |
+| xUnit | 2.9.3 — 100 test cases |
 
 ### Repository layout
 
@@ -147,15 +147,9 @@ Run the tests from the repository root:
 dotnet test tests/Exel.Tests.csproj -c Release
 ```
 
-`SpreadsheetTests.cs` contains exactly **five** unit tests covering the main spreadsheet features:
+The suite contains **100 test cases**, including parameterized cases. The original five spreadsheet scenarios remain in `SpreadsheetTests.cs`; additional tests cover arithmetic, ANTLR parsing, dependencies, JSON validation, Undo/Redo, and Google Drive/OAuth behavior.
 
-1. Variant 6 operations (`+`, `-`, `*`, `/`, `div`, `mod`, `^`, `min`, `max`), precedence and BigInteger results.
-2. Syntax error positions and syntax-only validation without arithmetic evaluation.
-3. Recalculation of a dependency chain after an edit, case-insensitive references and empty cells.
-4. An indirect cycle, its effect on dependent cells, and recovery after breaking it.
-5. JSON preservation of table metadata, formulas and references, followed by recalculation.
-
-The tests run independently of MAUI and do not contact Google.
+The tests include a fully populated 100 × 100 sheet, resource limits, malformed files, duplicate addresses, token restoration, PKCE/state checks and mocked Drive requests. OAuth callback tests use localhost; they do not access a real Google account or modify cloud files. UI behavior is checked separately in the Windows application.
 
 ## Generative AI usage
 
