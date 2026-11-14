@@ -52,8 +52,9 @@ Exel/
 │   └── Exel.Integration/
 │       └── GoogleDrive/       OAuth and Google Drive requests
 └── tests/
-    └── Exel.Tests/
-        └── SpreadsheetTests.cs
+    ├── Exel.Tests.csproj
+    ├── SpreadsheetTests.cs
+    └── Usings.cs
 ```
 
 ## Getting started
@@ -143,7 +144,7 @@ XLSX import/export and Google Sheets document editing are not implemented. Uploa
 Run the tests from the repository root:
 
 ```powershell
-dotnet test tests/Exel.Tests/Exel.Tests.csproj -c Release
+dotnet test tests/Exel.Tests.csproj -c Release
 ```
 
 `SpreadsheetTests.cs` contains exactly **five** unit tests covering the main spreadsheet features:

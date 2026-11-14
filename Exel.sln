@@ -6,7 +6,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Exel.Core", "src\Exel.Core\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Exel.Integration", "src\Exel.Integration\Exel.Integration.csproj", "{A8A42110-D2C4-4F25-B33C-65790CF9D1DA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Exel.Tests", "tests\Exel.Tests\Exel.Tests.csproj", "{7DA5CB1A-A416-49BC-8C37-33BA28961025}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Exel.Tests", "tests\Exel.Tests.csproj", "{7DA5CB1A-A416-49BC-8C37-33BA28961025}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
